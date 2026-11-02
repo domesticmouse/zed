@@ -1,5 +1,7 @@
 # Agent model search benchmark
 
+## Overview
+
 This benchmark measures the search pipeline shared by the agent model and ACP
 configuration-option pickers, including candidate construction, matching, ranking,
 and result cloning. It records both completion latency and foreground task-poll
@@ -45,3 +47,20 @@ No window is rendered. Foreground frame-budget overruns use GPUI's synthetic
 120 FPS budget (8.33 ms); they are not display-dropped frames. The foreground
 report includes warm-up and calibration, whereas Criterion's latency estimate
 uses its measurement phase.
+
+## Interface
+
+- Benchmark target: `[Cargo.toml:model_search]`, `[benches/model_search.rs:benches]`
+
+## Invariants
+
+- Benchmark search output must match the expected candidate ordering (name matches ordered by descending score then `candidate_id`, followed by deduplicated metadata matches) without dropping, duplicating, or reordering options, verified on `Drop` after task timing (`[benches/model_search.rs:expected_values]`, `[benches/model_search.rs:ValidatedResults::drop]`).
+- Pre-benchmark assertions enforce that the `missing` query yields an empty expected set, `name-ranking` ranks the first two options (`High`, `Extra High`) first, and all other queries yield non-empty expected results (`[benches/model_search.rs:model_search]`).
+
+## Side Effects
+
+- Spawns asynchronous search tasks onto GPUI foreground and background executors and executes Criterion benchmark measurements (`[benches/model_search.rs:model_search]`, `[benches/model_search.rs:benches]`).
+
+## Verification
+
+- Run: `./script/bench-agent-model-search --test`

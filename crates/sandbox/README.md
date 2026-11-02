@@ -32,7 +32,7 @@ This can be mitigated by:
   access to those paths can be escalated to unsandboxed code execution via hooks,
   `$EDITOR`, and other mechanisms
 
-This is not foolproof though - for example, on linux, it's not possible to protect `.git` if it doesn't already exist, and so 
+This is not foolproof though - for example, on linux, it's not possible to protect `.git` if it doesn't already exist, and so a sandboxed process with write access to a parent directory could create a new `.git` directory containing malicious hooks.
 
 ## Implementation
 
@@ -395,6 +395,31 @@ granted" disclosure. The raw path is display/provenance only.
 A thin wrapper around a `PathBuf` representing a location *inside* the sandbox.
 No hardening is required - the worst a tampered in-sandbox path can do is expose
 already-granted host files at a different in-sandbox path.
+
+## Interface
+
+- Core Sandbox & Policy API: `[src/sandbox.rs:Sandbox]`, `[src/sandbox.rs:SandboxPolicy]`, `[src/sandbox.rs:SandboxFsPolicy]`, `[src/sandbox.rs:SandboxNetPolicy]`, `[src/sandbox.rs:ProtectedPaths]`, `[src/sandbox.rs:CommandAndArgs]`, `[src/sandbox.rs:WrappedCommand]`, `[src/sandbox.rs:SandboxError]`, `[src/sandbox.rs:run_sandbox_launcher_if_invoked]`
+- Filesystem Locations & Write Grants: `[src/sandbox.rs:SandboxFilesystemLocation]`, `[src/sandbox.rs:GrantableWriteDir]`, `[src/util/host_filesystem_location.rs:HostFilesystemLocation]`, `[src/util/host_filesystem_location.rs:HostFilesystemLocationDisplay]`, `[src/util/host_filesystem_location.rs:normalize_host_filesystem_locations]`, `[src/util.rs:resolve_canonical]`
+- Windows / WSL Helpers: `[src/sandbox.rs:path_is_on_windows_drive]`, `[src/sandbox.rs:wsl_distro_registered]`, `[src/windows_wsl.rs:ResolvedGrant]`, `[src/windows_wsl.rs:resolve_canonical_for_grant]`
+
+## Invariants
+
+- `Sandbox::new` rejects any `SandboxFsPolicy::Restricted` policy where a writable path equals or is a descendant of a protected path (`SandboxError::InvalidRequest`) (`[src/sandbox.rs:validate_writable_paths_do_not_overlap_protected_paths]`).
+- `CanonicalPathBuf` holds an absolute, symlink-free canonical path; on Linux it also owns a live `O_PATH` file descriptor pinning the exact inode, and `from_canonical` rejects symlink leaves (`O_NOFOLLOW` + `S_IFLNK`) or post-approval path redirects (`readlink(/proc/self/fd/N) != path`) (`[src/util/canonical_path.rs:CanonicalPathBuf]`).
+- On Linux, `locate_bwrap` refuses to execute any setuid-root `bwrap` binary (`SandboxError::BwrapSetuidRejected`), caps validated writable binds at `MAX_VALIDATED_BINDS` (200), verifies `fstat` `(dev, ino)` of each `SCM_RIGHTS`-received `O_PATH` fd matches `lstat` of the mounted bind path, and installs a seccomp-BPF filter on the untrusted command (`[src/linux_bubblewrap.rs:locate_bwrap]`, `[src/linux_bubblewrap.rs:MAX_VALIDATED_BINDS]`, `[src/linux_bubblewrap.rs:validate_binds]`, `[src/linux_bubblewrap.rs:build_command_seccomp_program]`).
+- On macOS, `generate_seatbelt_config` uses an explicit `mach-lookup` service allowlist and emits `(deny file-write* (subpath ...))` rules for protected paths after `(allow file-write* ...)` rules (`[src/macos_seatbelt.rs:generate_seatbelt_config]`).
+- On Windows/WSL, `select_distro` rejects requests spanning multiple WSL distributions and `build_bwrap_args` blocks WSL Windows interop inside the sandbox (`[src/windows_wsl.rs:select_distro]`, `[src/windows_wsl.rs:build_bwrap_args]`).
+
+## Side Effects
+
+- Spawns an in-process HTTP/HTTPS `ProxyHandle` when restricted networking is configured and rewrites `HTTP(S)_PROXY`/`ALL_PROXY`/`NO_PROXY` in the command environment (`[src/sandbox.rs:Sandbox::ensure_restricted_proxy]`).
+- On Linux, creates a `0700` temporary directory and `0600` Unix domain socket (`zed-sandbox-validate-*`) to send captured `O_PATH` file descriptors over `SCM_RIGHTS` to the in-sandbox launcher (`[src/linux_bubblewrap.rs:ValidationFdSender::spawn]`, `[src/linux_bubblewrap.rs:run_launcher]`).
+- On macOS, writes a temporary Seatbelt `.sb` profile file via `tempfile::NamedTempFile` for `/usr/bin/sandbox-exec -f` (`[src/macos_seatbelt.rs:SeatbeltConfigFile::new]`).
+- On Windows, probes the `Lxss` registry and `wsl.exe` environment and provisions the matching Linux `zed` helper binary under `~/.local/libexec/zed/<channel>` inside WSL (`[src/windows_wsl.rs:probe_environment]`, `[src/windows_wsl.rs:ensure_wsl_zed_helper]`).
+
+## Verification
+
+- Run: `cargo test -p sandbox`
 
 
 [bubblewrap]: https://github.com/containers/bubblewrap

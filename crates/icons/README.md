@@ -1,5 +1,9 @@
 # Zed Icons
 
+## Overview
+
+Typed enumeration (`IconName`) and SVG asset path resolver for Zed UI icons.
+
 ## Guidelines
 
 Icons are a big part of Zed, and they're how we convey hundreds of actions without relying on labeled buttons.
@@ -21,9 +25,25 @@ Sometimes, we may use other sources like [Phosphor](https://phosphoricons.com/),
 
 ## Contributing
 
-To introduce a new icon, add the `.svg` file to the `assets/icon` directory and then add its corresponding item to the `icons.rs` file within the `crates` directory.
+To introduce a new icon, add the `.svg` file to the `assets/icons` directory and then add its corresponding item to `crates/icons/src/icons.rs`.
 
 - SVG files in the assets folder follow a snake_case name format.
 - Icons in the `icons.rs` file follow the PascalCase name format.
 
 Make sure to tag a member of Zed's design team (@zed-industries/design) so we can review and adjust any newly introduced icon.
+
+## Interface
+
+- Icon enum & path lookup: `[src/icons.rs:IconName]`, `[src/icons.rs:IconName::path]`
+
+## Invariants
+
+- `IconName` serializes enum variants in `snake_case` via `#[strum(serialize_all = "snake_case")]` and resolves each variant to `icons/{file_stem}.svg` (`[src/icons.rs:IconName]`, `[src/icons.rs:IconName::path]`).
+
+## Side Effects
+
+- None (`[src/icons.rs:IconName]`).
+
+## Verification
+
+- Run: `cargo test -p icons`

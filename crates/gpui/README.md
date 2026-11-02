@@ -1,5 +1,7 @@
 # Welcome to GPUI!
 
+## Overview
+
 GPUI is a hybrid immediate and retained mode, GPU accelerated, UI framework
 for Rust, designed to support a wide variety of applications.
 
@@ -91,8 +93,33 @@ In addition to the systems above, GPUI provides a range of smaller services that
 
 - Platform services, such as `quit the app` or `open a URL` are available as methods on the `app::App`.
 
-- An async executor that is integrated with the platform's event loop. See the `executor` module for more information.,
+- An async executor that is integrated with the platform's event loop. See the `executor` module for more information.
 
 - The `[gpui::test]` macro provides a convenient way to write tests for your GPUI applications. Tests also have their own kind of context, a `TestAppContext` which provides ways of simulating common platform input. See `app::test_context` and `test` modules for more details.
 
 Currently, the best way to learn about these APIs is to read the Zed source code or drop a question in the [Zed Discord](https://zed.dev/community-links). We're working on improving the documentation, creating more examples, and will be publishing more guides to GPUI on our [blog](https://zed.dev/blog).
+
+## Interface
+
+- Application & Contexts: `[src/app.rs:Application]`, `[src/app.rs:ApplicationHandle]`, `[src/app.rs:App]`, `[src/app.rs:AppCell]`, `[src/app.rs:SHUTDOWN_TIMEOUT]`, `[src/app/context.rs:Context]`, `[src/app/async_context.rs:AsyncApp]`, `[src/app/async_context.rs:AsyncWindowContext]`, `[src/gpui.rs:AppContext]`, `[src/gpui.rs:VisualContext]`, `[src/gpui.rs:BorrowAppContext]`
+- Entities, Events & Globals: `[src/app/entity_map.rs:Entity]`, `[src/app/entity_map.rs:WeakEntity]`, `[src/app/entity_map.rs:AnyEntity]`, `[src/app/entity_map.rs:AnyWeakEntity]`, `[src/app/entity_map.rs:EntityId]`, `[src/gpui.rs:Reservation]`, `[src/gpui.rs:EventEmitter]`, `[src/subscription.rs:Subscription]`, `[src/subscription.rs:SubscriberSet]`, `[src/global.rs:Global]`, `[src/global.rs:ReadGlobal]`, `[src/global.rs:UpdateGlobal]`
+- Windows, Views & Elements: `[src/window.rs:Window]`, `[src/window.rs:WindowHandle]`, `[src/window.rs:AnyWindowHandle]`, `[src/window.rs:WindowId]`, `[src/window.rs:WindowOptions]`, `[src/window.rs:DispatchPhase]`, `[src/window.rs:ElementId]`, `[src/view.rs:View]`, `[src/view.rs:AnyView]`, `[src/view.rs:AnyWeakView]`, `[src/view.rs:ViewElement]`, `[src/element.rs:Element]`, `[src/element.rs:IntoElement]`, `[src/element.rs:Render]`, `[src/element.rs:RenderOnce]`, `[src/element.rs:ParentElement]`, `[src/element.rs:AnyElement]`, `[src/element.rs:GlobalElementId]`
+- Styling, Layout, Input & Actions: `[src/styled.rs:Styled]`, `[src/style.rs:Style]`, `[src/interactive.rs:InteractiveElement]`, `[src/interactive.rs:StatefulInteractiveElement]`, `[src/interactive.rs:Focusable]`, `[src/interactive.rs:FocusHandle]`, `[src/action.rs:Action]`, `[src/action.rs:actions!]`, `[src/keymap.rs:Keymap]`, `[src/keymap.rs:KeyBinding]`, `[src/color.rs:Hsla]`, `[src/color.rs:Rgba]`, `[src/geometry.rs:Bounds]`, `[src/geometry.rs:Point]`, `[src/geometry.rs:Size]`, `[src/geometry.rs:Pixels]`, `[src/geometry.rs:DevicePixels]`, `[src/geometry.rs:ScaledPixels]`, `[src/geometry.rs:Rems]`, `[src/scene.rs:Scene]`
+- Executors, Platform, Text & Assets: `[src/executor.rs:BackgroundExecutor]`, `[src/executor.rs:ForegroundExecutor]`, `[src/executor.rs:SendForegroundExecutor]`, `[src/executor.rs:Task]`, `[src/executor.rs:TaskExt]`, `[src/executor.rs:Priority]`, `[src/platform.rs:Platform]`, `[src/platform.rs:PlatformWindow]`, `[src/platform.rs:PlatformDisplay]`, `[src/platform.rs:PlatformDispatcher]`, `[src/text_system.rs:TextSystem]`, `[src/text_system.rs:WindowTextSystem]`, `[src/asset_cache.rs:Asset]`, `[src/assets.rs:AssetSource]`, `[src/gpui.rs:GpuSpecs]`, `[src/prelude.rs:*]`
+
+## Invariants
+
+- `App` state is wrapped in an `AppCell` (`RefCell`); overlapping mutable/shared borrows panic with `AppBorrowError` reporting the existing borrow's caller location (`[src/app.rs:AppCell]`).
+- Leasing an entity removes it from `EntityMap` onto the stack; attempting to read or update the same `EntityId` while leased panics via `double_lease_panic` (`[src/app/entity_map.rs:EntityMap::lease_erased]`).
+- Entities must only be read or updated with the `App` context that created them (`[src/app/entity_map.rs:EntityMap::assert_valid_context]`).
+- Registering multiple actions with the same name or reading an unassigned `Global` type panics (`[src/action.rs:Action]`, `[src/global.rs:ReadGlobal::global]`).
+
+## Side Effects
+
+- `build.rs` emits `gpui_leak_detection` and `gpui_hot_reload` rustc cfg flags and compiles Windows manifest resources when `target_os == "windows"` and `windows-manifest` is enabled (`[build.rs:main]`).
+- `BackgroundExecutor` spawns tasks onto background worker threads (or a dedicated realtime audio thread for `Priority::RealtimeAudio`) and manages OS App Nap activity guards (`[src/executor.rs:BackgroundExecutor]`).
+- `WindowInvalidator` marks views/windows dirty, records profiler frame journal events when `feature = "profiler"` is enabled, pushes `Effect::Notify` to `App`, and invokes platform frame wakers (`[src/window.rs:WindowInvalidator]`).
+
+## Verification
+
+- Run: `cargo test -p gpui`

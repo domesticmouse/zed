@@ -1,8 +1,10 @@
 # agent_skills
 
+## Overview
+
 Loading and parsing of [Agent Skills](https://agentskills.io/specification) — `SKILL.md` files that extend the agent with task-specific instructions, references, and bundled scripts. The agent surfaces them to the model through a `skill` tool and to the user through slash commands.
 
-This document explains the design decisions that aren't obvious from reading the code. The mechanics live in `skill.rs`, in `crates/agent/src/tools/skill_tool.rs`, and in `crates/agent/src/agent.rs`. This is the rationale for why those pieces look the way they do.
+This document explains the design decisions that aren't obvious from reading the code. The mechanics live in `agent_skills.rs`, in `crates/agent/src/tools/skill_tool.rs`, and in `crates/agent/src/agent.rs`. This is the rationale for why those pieces look the way they do.
 
 ## What the spec says
 
@@ -17,10 +19,11 @@ The spec deliberately leaves a lot unspecified — where skills live on disk, ho
 
 ## Discovery
 
-### Only `.agents/skills`
+### Only `.agents/skills` (plus built-in skills)
 
-Two scopes:
+Three scopes (in ascending override precedence: `BuiltIn` < `Global` < `ProjectLocal`):
 
+- **Built-in**: Bundled with Zed (`builtin/create-skill/SKILL.md` via `builtin_skills()`).
 - **Global**: `~/.agents/skills/` — applies to every project.
 - **Project-local**: `<worktree>/.agents/skills/` — applies only to the current project.
 
@@ -77,7 +80,7 @@ The practical upshot: iterating on the body of a skill is free from the model AP
 
 ### Strict validation is a permanent design decision
 
-`name` must match `[a-z0-9-]{1,64}` and `description` must be 1–1024 characters and non-empty. If either fails, we reject the skill outright with a load error that surfaces in the UI.
+`name` must match `[a-z0-9-]{1,64}` (not starting or ending with `-`) and `description` must be non-empty (`1–1024` characters under strict validation via `validate_description`; during directory loading via `load_skill_frontmatter`, a description exceeding 1024 characters emits `SkillLoadWarning::DescriptionTooLong` while still loading the skill). If `name` validation fails or `description` is empty, we reject the skill outright with a load error that surfaces in the UI.
 
 Some implementations are more lenient — they warn but load anyway, on the theory that interop is more important than rule enforcement. **We are not doing that, and we are not going to.** This is not a feature gap we're tracking; it's a deliberate, permanent posture. The reasons:
 
@@ -267,10 +270,38 @@ A few things that are common in other tools, that we deliberately deferred:
 
 ## Where to start reading
 
-- `skill.rs` — types, frontmatter parsing, discovery, override merge.
+- `agent_skills.rs` — types, frontmatter parsing, discovery, override merge.
 - `crates/agent/src/tools/skill_tool.rs` — the `skill` tool, the `<skill_content>` renderer, XML escape helper.
 - `crates/agent/src/agent.rs` — slash command registration (`build_available_commands_for_project`), slash command activation (`send_skill_invocation`), live reload (`watch_global_skills_directory` and `maintain_project_context`).
 - `crates/agent/src/agent.rs::select_catalog_skills` — where `disable-model-invocation` filtering and the 50KB catalog budget are enforced.
 - `crates/prompt_store/src/prompts.rs` — `ProjectContext` (the type the system prompt is rendered against; receives the catalog from `select_catalog_skills`).
 - `crates/agent/src/templates/system_prompt.hbs` — catalog rendering in the system prompt.
 - `crates/agent/src/tools/tool_permissions.rs` — sensitive-path classification for skill files (`SensitiveSettingsKind::AgentSkills`) and the global-skills fast path used by `read_file` and `list_directory`.
+
+## Interface
+
+- Constants: `[agent_skills.rs:AGENTS_DIR_NAME]`, `[agent_skills.rs:SKILLS_DIR_NAME]`, `[agent_skills.rs:GLOBAL_SKILLS_DIR_DISPLAY]`, `[agent_skills.rs:SKILL_FILE_NAME]`, `[agent_skills.rs:MAX_SKILL_FILE_SIZE]`, `[agent_skills.rs:MAX_SKILL_DESCRIPTIONS_SIZE]`, `[agent_skills.rs:MAX_SKILL_NAME_LEN]`, `[agent_skills.rs:MAX_SKILL_DESCRIPTION_LEN]`, `[agent_skills.rs:SKILL_SHARE_LINK_PREFIX]`
+- Core Types & Globals: `[agent_skills.rs:Skill]`, `[agent_skills.rs:SkillSource]`, `[agent_skills.rs:SkillScopeId]`, `[agent_skills.rs:SkillMetadata]`, `[agent_skills.rs:SkillSummary]`, `[agent_skills.rs:SkillIndex]`, `[agent_skills.rs:ProjectSkillGroup]`, `[agent_skills.rs:SkillsUpdatedHook]`, `[agent_skills.rs:SkillLoadError]`, `[agent_skills.rs:SkillLoadWarning]`
+- Parsing & Validation: `[agent_skills.rs:parse_skill_frontmatter]`, `[agent_skills.rs:extract_skill_frontmatter]`, `[agent_skills.rs:parse_skill_file_content]`, `[agent_skills.rs:slugify_skill_name]`, `[agent_skills.rs:validate_name]`, `[agent_skills.rs:validate_description]`
+- Discovery & Loading: `[agent_skills.rs:load_skills_from_directory]`, `[agent_skills.rs:load_skill_frontmatter]`, `[agent_skills.rs:read_skill_body]`, `[agent_skills.rs:read_skill_body_from_content]`, `[agent_skills.rs:builtin_skills]`, `[agent_skills.rs:builtin_skill_content]`, `[agent_skills.rs:global_skills_dir]`, `[agent_skills.rs:project_skills_relative_path]`, `[agent_skills.rs:is_agents_skills_path]`
+- Share Links: `[agent_skills.rs:encode_skill_share_link]`, `[agent_skills.rs:decode_skill_share_link]`
+
+## Invariants
+
+- `SKILL.md` file content and decoded share-link payloads must not exceed 100KB (`102,400` bytes) (`[agent_skills.rs:MAX_SKILL_FILE_SIZE]`, `[agent_skills.rs:extract_skill_frontmatter]`, `[agent_skills.rs:load_skill_frontmatter]`, `[agent_skills.rs:decode_skill_share_link]`).
+- `SKILL.md` must begin with a YAML frontmatter delimiter (`---`) and close with a line consisting strictly of `---` at column 0 that deserializes into `SkillMetadata` (`[agent_skills.rs:extract_frontmatter]`).
+- Skill names must be non-empty, at most 64 bytes (`MAX_SKILL_NAME_LEN`), contain only ASCII lowercase letters, digits, and hyphens, and must not start or end with a hyphen (`[agent_skills.rs:MAX_SKILL_NAME_LEN]`, `[agent_skills.rs:validate_name]`, `[agent_skills.rs:slugify_skill_name]`).
+- Skill descriptions cannot be empty or whitespace-only; strict validation requires at most 1024 Unicode scalar values (`MAX_SKILL_DESCRIPTION_LEN`), while loading emits `SkillLoadWarning::DescriptionTooLong` when exceeding 1024 characters (`[agent_skills.rs:MAX_SKILL_DESCRIPTION_LEN]`, `[agent_skills.rs:validate_description]`).
+- Skill source override precedence is strictly ordered as `BuiltIn` (0) < `Global` (1) < `ProjectLocal` (2) (`[agent_skills.rs:SkillSource::precedence]`).
+- Skill discovery only scans immediate child directories (one level deep) under the skills root for `SKILL.md`, with concurrent filesystem I/O bounded by `SKILL_IO_CONCURRENCY` (16) and results sorted deterministically by `skill_file_path` (`[agent_skills.rs:find_skill_files]`, `[agent_skills.rs:load_skills_from_directory]`).
+- Skill share links must use scheme `zed`, host `skill`, and a URL-safe unpadded base64 `data` query parameter decoding to valid UTF-8 (`[agent_skills.rs:SKILL_SHARE_LINK_PREFIX]`, `[agent_skills.rs:encode_skill_share_link]`, `[agent_skills.rs:decode_skill_share_link]`).
+
+## Side Effects
+
+- Performs asynchronous filesystem metadata queries, directory listings, and file reads via `fs::Fs` when discovering and loading skills (`[agent_skills.rs:load_skills_from_directory]`, `[agent_skills.rs:load_skill_frontmatter]`, `[agent_skills.rs:read_skill_body]`).
+- Reads the OS user home directory path via `paths::home_dir()` to construct `~/.agents/skills` (`[agent_skills.rs:global_skills_dir]`).
+- Registers `SkillIndex` and `SkillsUpdatedHook` as GPUI `Global` state types (`[agent_skills.rs:SkillIndex]`, `[agent_skills.rs:SkillsUpdatedHook]`).
+
+## Verification
+
+- Run: `cargo test -p agent_skills`

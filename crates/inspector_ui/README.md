@@ -1,8 +1,10 @@
 # Inspector
 
+## Overview
+
 This is a tool for inspecting and manipulating rendered elements in Zed. It is only available in debug builds. Use the `dev::ToggleInspector` action to toggle inspector mode and click on UI elements to inspect them.
 
-# Current features
+## Current features
 
 * Picking of elements via the mouse, with scroll wheel to inspect occluded elements.
 
@@ -14,9 +16,9 @@ This is a tool for inspecting and manipulating rendered elements in Zed. It is o
 
 * Navigation to code that constructed the element.
 
-# Known bugs
+## Known bugs
 
-## JSON style editor undo history doesn't get reset
+### JSON style editor undo history doesn't get reset
 
 The JSON style editor appends to its undo stack on every change of the active inspected element.
 
@@ -36,7 +38,7 @@ I attempted to fix it by creating a new buffer and setting the buffer associated
         });
 ```
 
-# Future features
+## Future features
 
 * Action and keybinding for entering pick mode.
 
@@ -50,11 +52,11 @@ I attempted to fix it by creating a new buffer and setting the buffer associated
 
 * Hierarchy view?
 
-## Methods that take arguments in Rust style editor
+### Methods that take arguments in Rust style editor
 
 Could use TreeSitter to parse out the fluent style method chain and arguments. Tricky part of this is completions - ideally the Rust Analyzer already being used by the developer's Zed would be used.
 
-## Edit original code in Rust style editor
+### Edit original code in Rust style editor
 
 Two approaches:
 
@@ -64,7 +66,7 @@ Two approaches:
 
 With both approaches, would need to record the buffer version and use that when referring to source locations, since editing elements can cause code layout shift.
 
-## Source location UI improvements
+### Source location UI improvements
 
 * Mode to navigate to source code on every element change while picking.
 
@@ -74,7 +76,7 @@ With both approaches, would need to record the buffer version and use that when 
 
   - Probably better to have a separate `Vec<Option<Location>>` that uses the same indices as `GlobalElementId`.
 
-## Persistent modification
+### Persistent modification
 
 Currently, element modifications disappear when picker mode is started. Handling this well is tricky. Potential features:
 
@@ -88,17 +90,17 @@ Currently, element modifications disappear when picker mode is started. Handling
 
 If support is added for editing original code, then the logical selector in this case would be just matches of the source path.
 
-# Code cleanups
+## Code cleanups
 
-## Consider removing special side pane rendering
+### Consider removing special side pane rendering
 
 Currently the inspector has special rendering in the UI, but maybe it could just be a workspace item.
 
-## Pull more inspector logic out of GPUI
+### Pull more inspector logic out of GPUI
 
-Currently `crates/gpui/inspector.rs` and `crates/inspector_ui/inspector.rs` are quite entangled.  It seems cleaner to pull as much logic a possible out of GPUI.
+Currently `crates/gpui/src/inspector.rs` and `crates/inspector_ui/src/inspector.rs` are quite entangled.  It seems cleaner to pull as much logic a possible out of GPUI.
 
-## Cleaner lifecycle for inspector state viewers / editors
+### Cleaner lifecycle for inspector state viewers / editors
 
 Currently element state inspectors are just called on render. Ideally instead they would be implementors of some trait like:
 
@@ -110,3 +112,23 @@ trait StateInspector: Render {
 ```
 
 See `div_inspector.rs` - it needs to initialize itself, keep track of its own loading state, and keep track of the last inspected ID in its render function.
+
+## Interface
+
+- Initialization: `[src/inspector_ui.rs:init]`, `[src/inspector.rs:init]`
+
+## Invariants
+
+- In non-debug builds (`#[cfg(not(debug_assertions))]`), `zed_actions::dev::ToggleInspector` returns an error and is hidden from the command palette (`[src/inspector_ui.rs:init]`).
+- `DivInspector::update_inspected_element` computes `json_style_overrides` as `new_style.subtract(&(unconvertible_style + rust_style))` after JSON-roundtripping `unconvertible_plus_rust` to normalize `f32` fraction serialization (`[src/div_inspector.rs:DivInspector::update_inspected_element]`).
+- `styled_ext_reflection` methods are chained before `styled_reflection` methods in `STYLE_METHODS` so `StyledExt` methods take precedence (`[src/div_inspector.rs:STYLE_METHODS]`).
+
+## Side Effects
+
+- Registers global action handlers for `zed_actions::dev::ToggleInspector`, updates `CommandPaletteFilter`, registers GPUI inspector state for `DivInspectorState`, and sets the global GPUI inspector renderer (`[src/inspector_ui.rs:init]`, `[src/inspector.rs:init]`).
+- Spawns an external `zed` CLI process to open an inspected element's source location (`[src/inspector.rs:open_zed_source_location]`).
+- Creates a local worktree and buffer at `/zed-inspector-style.json` (or `C:\zed-inspector-style.json` on Windows) in the inspector's local `Project` to drive the JSON language server (`[src/div_inspector.rs:DivInspector::new]`).
+
+## Verification
+
+- Run: `cargo test -p inspector_ui`
