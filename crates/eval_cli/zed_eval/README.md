@@ -1,5 +1,7 @@
 # zed-eval
 
+## Overview
+
 Python CLI and installed-agent package for building Zed's headless `eval-cli`
 binary, launching benchmark runs on Modal/Harbor/Pier, and fetching results.
 
@@ -346,3 +348,32 @@ harbor run -d "swebench_verified@latest" \
   --ae EVAL_CLI_TIMEOUT=600 \
   -m anthropic/claude-sonnet-4-6
 ```
+
+## Interface
+
+- **Package & CLI Entrypoints**:
+  - `[pyproject.toml:project.scripts.zed-eval]`: Console script entrypoint `zed_eval.cli:main` for the `zed-eval` package (`version = "0.2.0"`).
+  - `[cli.py:main]`, `[cli.py:build_parser]`, `[cli.py:command_doctor]`, `[cli.py:command_deploy]`, `[cli.py:command_cleanup]`: Top-level CLI argument parser and command dispatch for `doctor`, `deploy`, `cleanup`, `build`, `builds`, `run`, `swe-atlas`, `runs`, `list`, `status`, `logs`, `fetch`, `report`, `suite`, `rejudge`, and `baseline`.
+- **Harbor & Pier Agent Wrappers**:
+  - `[agent.py:ZedAgent]`: `BaseInstalledAgent` implementation (`name() == "zed"`) that installs container dependencies, provisions `/usr/local/bin/eval-cli` (from `EVAL_CLI_CONTAINER_PATH`, `binary_path`, or `EVAL_CLI_DOWNLOAD_URL`), and executes `eval-cli`.
+  - `[pier_agent.py:ZedPierAgent]`: Pier `BaseInstalledAgent` implementation for air-gapped DeepSWE runs (`install_spec`, `network_allowlist`, `_container_binary_path`).
+- **Configuration, Judges & Remote App**:
+  - `[config.py:JudgeConfig]`, `[config.py:JUDGES]`, `[config.py:judge_verifier_args]`: Judge model configurations (`leaderboard`, `opus-leaderboard`, `deepseek-v4-pro`, `kimi-k2.7-code`, `gpt55`) and `ZedJudgeProxyVerifier` CLI wiring.
+  - `[modal_app.py:app]`: Modal application (`DEFAULT_APP_NAME = "agent-evals"`) and controller functions for remote builds, benchmark execution, and volume management.
+
+## Invariants
+
+- `[pyproject.toml:project.requires-python]` & `[config.py:HARBOR_VERSION]` / `[config.py:MODAL_VERSION]`: Requires Python `>=3.12` with pinned `harbor==0.15.0` and `modal==1.5.0`.
+- `[cli.py:command_doctor]`: Requires `git`, `modal`, and `harbor` executables on `PATH` and both Modal secrets (`args.api_secret` default `agent-evals-llm-providers` and `args.modal_token_secret` default `agent-evals-modal-token`) to exist in `modal secret list --json`.
+- `[pier_agent.py:ZedPierAgent._container_binary_path]` & `[pier_agent.py:ZedPierAgent.network_allowlist]`: `ZedPierAgent` requires `EVAL_CLI_CONTAINER_PATH` on the mounted Modal volume and restricts sandbox egress to `DEFAULT_PROVIDER_DOMAINS` plus hosts extracted from `BASE_URL_ENV_VARS` and `ZED_OPENAI_COMPATIBLE_PROVIDERS`.
+- `[agent.py:EVAL_CLI_FINALIZE_BUFFER_SEC]` & `[agent.py:EVAL_CLI_MIN_TIMEOUT_SEC]`: Reserves a 45-second finalize buffer (`EVAL_CLI_FINALIZE_BUFFER_SEC = 45`) and enforces a minimum timeout of 60 seconds (`EVAL_CLI_MIN_TIMEOUT_SEC = 60`) so `eval-cli` can flush output before Harbor's outer timeout expires.
+
+## Side Effects
+
+- `[cli.py:modal_secret_names]`, `[launch.py]`, `[modal_app.py:app]`: Spawns `git`, `modal`, and `harbor` subprocesses, deploys and invokes remote Modal functions and sandboxes, and reads/writes `builds/<build-id>/` and `runs/<namespace>/<experiment-name>/<run-id>/` artifacts on the shared Modal volume.
+- `[volume.py:command_fetch]`: Downloads run archives from the Modal volume and extracts them to `~/.cache/harbor/jobs/<run-id>/`.
+- `[agent.py:ZedAgent.install]`: Executes root package installation (`apt-get`, `apk`, `dnf`, or `yum`), installs Node/LSPs/`uv`/`ruff` best-effort, and copies or downloads `/usr/local/bin/eval-cli` inside trial containers.
+
+## Verification
+
+- Run: `uv run --project crates/eval_cli/zed_eval python -m unittest discover -s crates/eval_cli/zed_eval/tests`

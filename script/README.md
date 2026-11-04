@@ -5,7 +5,7 @@ Build, packaging, release automation, database bootstrapping, code-quality linti
 
 ## Interface
 - **Subdirectories**:
-  - `danger` (`./danger/dangerfile.ts`): DangerJS pull-request review rules (`SELF_REVIEW_MARKER` check, package/Cargo.lock consistency).
+  - [danger](./danger/README.md): DangerJS pull-request hygiene, release notes validation, agent self-review marker enforcement, and schema/fixture modification attestations.
   - [flatpak](./flatpak/README.md): Flatpak packaging scripts and AppStream XML release note conversion.
   - [lib](./lib/README.md): Shared Bash, PowerShell, and Node.js helper functions for blob storage uploads, version bumping, release notes parsing, and deployment environment configuration.
   - `licenses` (`./licenses/zed-licenses.toml`): `cargo-about` SPDX license configuration and Handlebars templates (`template.md.hbs`, `template.csv.hbs`).

@@ -1,5 +1,9 @@
 # GPUI Examples
 
+## Overview
+
+Standalone desktop and WebAssembly example applications demonstrating GPUI windows, layout, styling, input, animations, and headless/windowed runtime modes.
+
 Examples can be run from the Zed repository root:
 
 ```sh
@@ -155,3 +159,26 @@ best starting point for new applications:
 - `ownership_post` supports the ownership and data-flow documentation.
 - `paths_bench` is a path rendering benchmark.
 - `tree` renders a deep tree of nested elements.
+
+## Interface
+
+- **Starter & Core Examples**: `[hello_world.rs:main]` / `[hello_world.rs:start]`, `[input.rs:main]`, `[uniform_list.rs:main]`, `[testing.rs]`, `[view_example/view_example_main.rs:main]`
+- **Layout, Styling & Text**: `[grid_layout.rs:main]`, `[opacity.rs:main]`, `[pattern.rs:main]`, `[shadow.rs:main]`, `[text.rs:main]`, `[text_layout.rs:main]`, `[text_wrapper.rs:main]`
+- **Interaction, Accessibility & Navigation**: `[a11y.rs:main]`, `[anchor.rs:main]`, `[data_table.rs:main]`, `[drag_drop.rs:main]`, `[focus_visible.rs:main]`, `[mouse_pressure.rs:main]`, `[popover.rs:main]`, `[scrollable.rs:main]`, `[tab_stop.rs:main]`
+- **Graphics, Images & Animation**: `[animation.rs:main]`, `[gif_viewer.rs:main]`, `[gradient.rs:main]`, `[image/image.rs:main]`, `[image_gallery.rs:main]`, `[image_loading.rs:main]`, `[painting.rs:main]`, `[svg/svg.rs:main]`
+- **Windows & Platform Integration**: `[move_entity_between_windows.rs:main]`, `[on_window_close_quit.rs:main]`, `[set_menus.rs:main]`, `[system_notifications.rs:main]`, `[window.rs:main]`, `[window_movable.rs:main]`, `[window_positioning.rs:main]`, `[window_shadow.rs:main]`, `[toggle_headless.rs:main]`, `[layer_shell.rs:main]`
+- **Specialized & Diagnostic Examples**: `[active_state_bug.rs:main]`, `[list_example.rs:main]`, `[ownership_post.rs:main]`, `[paths_bench.rs:main]`, `[tree.rs:main]`
+
+## Invariants
+
+- `[hello_world.rs:run_example]` & `[example_support/fonts.rs:load_fonts]`: Examples sharing `example_support` must load bundled fonts via `example_support::load_fonts(cx)` before opening a window, returning early if font loading fails.
+- `[hello_world.rs:start]`: WebAssembly-compatible examples mark `#![cfg_attr(target_family = "wasm", no_main)]` and export a `#[wasm_bindgen(start)]` entrypoint that calls `gpui_platform::web_init()` before invoking `run_example()`.
+
+## Side Effects
+
+- `[hello_world.rs:run_example]`: Initializes `gpui_platform::application()`, loads font/image/SVG assets into `App`, and opens native OS or browser WebGPU/WebGL2 windows.
+- `[toggle_headless.rs:main]` & `[system_notifications.rs:main]`: Reads interactive commands from `stdin`, attaches/detaches Wayland or X11 display connections on Linux, and dispatches OS notifications.
+
+## Verification
+
+- Run: `cargo check -p gpui --examples`
