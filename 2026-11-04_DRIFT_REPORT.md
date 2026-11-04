@@ -2,15 +2,15 @@
 
 ## README.md
 
-No drift detected.
+No drift detected (updated `script` and `tooling` boundary summaries to include `gpui-bench-compare` and `./tooling/crates_io_client/README.md`).
 
 ## docs/README.md
 
-No drift detected (3 legacy prose drifts in `theme/page-toc.css`, `<kbd class="keybinding">` template output, and `crates/docs_preprocessor/src/main.rs` references reconciled during audit).
+No drift detected (reconciled `write_ai_discovery_artifacts` reference in `crates/docs_preprocessor/src/ai_discovery.rs` and updated `./theme/analytics.js` `window.c15t` queue + `${consentInstance}/c15t.js` script injection details).
 
 ## tooling/README.md
 
-No drift detected.
+No drift detected (added `./crates_io_client/README.md` boundary link).
 
 ## tooling/compliance/README.md
 
@@ -25,6 +25,10 @@ No drift detected.
 No drift detected.
 
 ## tooling/corgi/patches/scratch/README.md
+
+No drift detected.
+
+## tooling/crates_io_client/README.md
 
 No drift detected.
 
@@ -62,7 +66,7 @@ No drift detected.
 
 ## script/README.md
 
-No drift detected.
+No drift detected (added `gpui-bench-compare` interface and invariants).
 
 ## script/danger/README.md
 
@@ -122,7 +126,7 @@ No drift detected.
 
 ## crates/gpui/README.md
 
-No drift detected.
+No drift detected (added `TestAppContext`, `VisualTestContext`, `BenchAppContext`, `bench_platform`, and `RandomizedElementTreeConfig` testing/benchmarking interface entries).
 
 ## crates/gpui/examples/README.md
 

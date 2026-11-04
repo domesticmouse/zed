@@ -93,7 +93,7 @@ The consent banner is the markup in `theme/index.hbs`, driven by `theme/analytic
 ### References
 
 - Preprocessor & template functions (`template_and_validate_keybindings`, `template_and_validate_actions`, `template_and_validate_json_snippets`): `crates/docs_preprocessor/src/main.rs`
-- AI discovery artifacts (`write_discovery_artifacts`): `crates/docs_preprocessor/src/ai_discovery.rs`
+- AI discovery artifacts (`write_ai_discovery_artifacts`): `crates/docs_preprocessor/src/ai_discovery.rs`
 - Client-side plugins: `docs/theme/plugins.js`
 
 ## Postprocessor
@@ -166,7 +166,7 @@ title: "Some title"
 - **Legacy Fragment Redirects (`./redirects/legacy-fragment-redirects.js`)**:
   - `legacyAnchors` & `redirectLegacyAnchor()`: Client-side hash redirector mapping legacy extension-publishing anchors on `/extensions/developing-extensions` to their split pages under `publishing/*`.
 - **Client-Side Theme & Plugins (`./theme/`)**:
-  - `./theme/analytics.js`: Reads `meta[name="amplitude-key"]` (`amplitudeKey`) and `meta[name="consent-io-instance"]` (`consentInstance`) to initialize `window.c15t.getOrCreateConsentRuntime`, manage the `#c15t-banner` consent UI, and conditionally load Amplitude analytics under the `"measurement"` consent category.
+  - `./theme/analytics.js`: Reads `meta[name="amplitude-key"]` (`amplitudeKey`) and `meta[name="consent-io-instance"]` (`consentInstance`) to queue commands on `window.c15t` (`config`, `on("ui", ...)`, `save`, `openDialog`, `acceptAll`, `rejectAll`), load `${consentInstance}/c15t.js` from the Inth backend, manage the `#c15t-banner` consent UI, and conditionally load Amplitude analytics under the `"measurement"` consent category.
   - `./theme/page-toc.js`: Exports `getPagetoc()`, `autoCreatePagetoc()`, `updateFunction()`, and `listenActive()` to dynamically build the "On This Page" navigation (`.pagetoc`) from `.header` elements and track active headings on scroll.
   - `./theme/plugins.js`: Exports `detectOS()`, `updateKeybindings()`, `darkModeToggle()`, `copyPageActions()`, `initializePlugins()`, `initCollapsibleSidebar()`, `saveCollapsedSections()`, `getSectionItems()`, `setupCollapsibleSection()`, and `toggleSection()`.
 
@@ -183,7 +183,7 @@ title: "Some title"
 
 - **Build & Postprocessing (`./book.toml`)**: Invokes `cargo run -p docs_preprocessor --` and `cargo run -p docs_preprocessor -- postprocess`, compiling/running the Rust preprocessor and writing postprocessed HTML files to the mdBook output directory.
 - **DOM & Storage Mutations (`./theme/plugins.js`, `./theme/page-toc.js`)**: Mutates `<kbd>` elements to show OS-specific shortcuts, sets `data-theme`/`data-color-scheme` on `document.documentElement`, persists theme selection in `localStorage` (`"mdbook-theme"`), persists collapsed sidebar chapters in `sessionStorage` (`"sidebar-collapsed-sections"`), and writes fetched Markdown source to `navigator.clipboard`.
-- **Network & Navigation (`./theme/analytics.js`, `./theme/plugins.js`, `./redirects/legacy-fragment-redirects.js`)**: Connects to the configured `c15t` backend, loads `https://cdn.amplitude.com/script/${amplitudeKey}.js` upon measurement consent, fetches alternate Markdown page resources on copy actions, and calls `window.location.replace(...)` when matching legacy extension hash anchors.
+- **Network & Navigation (`./theme/analytics.js`, `./theme/plugins.js`, `./redirects/legacy-fragment-redirects.js`)**: Appends `<script src="${consentInstance}/c15t.js" defer>` to `document.head` to connect to the configured `c15t` backend, loads `https://cdn.amplitude.com/script/${amplitudeKey}.js` upon measurement consent, fetches alternate Markdown page resources on copy actions, and calls `window.location.replace(...)` when matching legacy extension hash anchors.
 
 ## Verification
 
